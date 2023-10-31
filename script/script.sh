@@ -1,0 +1,1 @@
+for file in *.yaml; do actionlint -format '{{range $err := .}}{{json $err}}{{end}}' $file >> ../actionresponsecheck.json; done
