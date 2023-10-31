@@ -1,2 +1,3 @@
 data-raw
-.env
+env
+.ipynb_checkpoints
