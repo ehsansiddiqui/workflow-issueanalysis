@@ -1,0 +1,238 @@
+name: Build + Test
+
+on:
+  push:
+    branches:
+      - main
+      - \d+\.x
+  pull_request:
+
+env:
+  IsForkedRepository: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+  DotNetVersion: '7.0.202'
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+
+    outputs:
+      semVer2: ${{ steps.nbgv.outputs.SemVer2 }}
+      isPreviewRelease: ${{ startsWith(steps.nbgv.outputs.PrereleaseVersionNoLeadingHyphen, 'preview') }}
+      isStableRelease: ${{ steps.nbgv.outputs.PrereleaseVersionNoLeadingHyphen == '' }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        submodules: 'true'
+        
+    - name: Setup .NET ${{ env.DotNetVersion }}
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: |
+          ${{ env.DotNetVersion }}
+
+    - name: Determine semantic version
+      uses: dotnet/nbgv@master
+      id: nbgv
+
+    - name: Build
+      run: dotnet build ./${{ github.event.repository.name }}.sln -c Release -p:ContinuousIntegrationBuild=true
+
+    - name: Pack
+      if: ${{ github.event_name == 'push' }}
+      run: dotnet pack ./${{ github.event.repository.name }}.sln -c Release --no-build
+
+    - name: Copy NuGet packages to artifacts
+      if: ${{ github.event_name == 'push' }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: NuGetPackages
+        path: ./**/${{ github.event.repository.name }}.*.nupkg
+        if-no-files-found: error
+
+  test-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        testFramework: [ netcoreapp3.1, net5.0, net6.0, net7.0 ]
+      fail-fast: false
+
+    services:
+      gremlinServer:
+        image: tinkerpop/gremlin-server
+        ports:
+          - 8182:8182
+      janusgraph:
+        image: janusgraph/janusgraph
+        ports:
+          - 8183:8182
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        submodules: 'true'
+        
+    - name: Setup .NET ${{ env.DotNetVersion }}
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: |
+          3.1
+          5.0
+          6.0
+          7.0
+
+    - name: Test
+      run: dotnet test ./${{ github.event.repository.name }}.sln -c Release -p:TestTargetFramework=${{ matrix.testFramework }} -v normal
+      env:
+        RunGremlinServerIntegrationTests: ${{ env.IsForkedRepository == 'false' }}
+        RunJanusGraphIntegrationTests: ${{ env.IsForkedRepository == 'false' }}
+
+    - name: Copy *.received-files to artifacts
+      if: ${{ always() && env.IsForkedRepository == 'false' }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-linux-received-snapshots
+        path: ./**/*.received.*
+
+  test-windows:
+    runs-on: windows-2019
+    strategy:
+      matrix:
+        testFramework: [ netcoreapp3.1, net5.0, net6.0, net7.0 ]
+      fail-fast: false
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        submodules: 'true'
+
+    - name: Setup .NET ${{ env.DotNetVersion }}
+      uses: actions/setup-dotnet@v3
+      with:
+        dotnet-version: |
+          3.1
+          5.0
+          6.0
+          7.0
+          
+    - name: Start CosmosDb Emulator
+      uses: Gremlinq/cosmos-emulator-github-action@EnableGremlin
+
+    - name: Test
+      run: dotnet test ./${{ github.event.repository.name }}.sln -c Release -p:TestTargetFramework=${{ matrix.testFramework }} -v normal
+      env:
+        RunCosmosDbIntegrationTests: ${{ env.IsForkedRepository == 'false' }}
+
+    - name: Copy *.received-files to artifacts
+      if: ${{ always() && env.IsForkedRepository == 'false' }}
+      uses: actions/upload-artifact@v3
+      with:
+        name: test-windows-received-snapshots
+        path: ./**/*.received.*
+
+  create-snapshot-fix-pr:
+    if: ${{ always() && github.event_name == 'pull_request' }}
+    runs-on: ubuntu-latest
+    needs: [ test-linux, test-windows ]
+    env:
+      pr-message: 'Fix snapshots for #${{ github.event.number }}.'
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+
+    - uses: actions/download-artifact@v2
+      continue-on-error: true
+      with:
+        name: test-linux-received-snapshots
+        
+    - uses: actions/download-artifact@v2
+      continue-on-error: true
+      with:
+        name: test-windows-received-snapshots
+
+    - name: Rename received files
+      run: find . -type f -name '*.received.*' | while read FILE ; do newfile="$(echo ${FILE} |sed -e 's/received/verified/')"; mv "${FILE}" "${newfile}"; done 
+
+    - name: Create snapshot changes pull request
+      uses: peter-evans/create-pull-request@v4
+      with:
+        commit-message: ${{ env.pr-message }}
+        title: ${{ env.pr-message }}
+        body: ${{ env.pr-message }}
+        base: ${{ github.head_ref }}
+        branch-suffix: short-commit-hash
+
+  push:
+    needs: [ build, test-linux, test-windows ]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && vars.PUSH_TO_GITHUB_PACKAGES == 'true' }}
+
+    steps:
+
+    - uses: actions/download-artifact@v2
+      with:
+        name: NuGetPackages
+
+    - name: Push NuGet packages to GitHub packages
+      run: dotnet nuget push **/${{ github.event.repository.name }}.*.nupkg
+        --source https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+        --api-key ${{ secrets.GITHUB_TOKEN }}
+        --no-symbols
+        --skip-duplicate
+
+  cleanup:
+    needs: [ push ]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        name: [ExRam.Gremlinq.Core, ExRam.Gremlinq.Core.AspNet, ExRam.Gremlinq.Providers.WebSocket, ExRam.Gremlinq.Providers.WebSocket.AspNet, ExRam.Gremlinq.Providers.Core, ExRam.Gremlinq.Providers.Neptune.AspNet, ExRam.Gremlinq.Providers.Neptune, ExRam.Gremlinq.Providers.Core.AspNet, ExRam.Gremlinq.Providers.CosmosDb, ExRam.Gremlinq.Providers.CosmosDb.AspNet, ExRam.Gremlinq.Providers.GremlinServer.AspNet, ExRam.Gremlinq.Providers.GremlinServer, ExRam.Gremlinq.Providers.JanusGraph.AspNet, ExRam.Gremlinq.Providers.JanusGraph]
+    
+    steps:
+    - uses: actions/delete-package-versions@v2
+      continue-on-error: true
+      with:
+        package-name: ${{ matrix.name }}
+        min-versions-to-keep: 10
+
+  release:
+    needs: [ build, test-linux, test-windows ]
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'push' && github.ref_name != 'main' }}
+
+    steps:
+    - uses: actions/download-artifact@v2
+      with:
+        name: NuGetPackages
+
+    - name: Draft release
+      id: create_release
+      uses: release-drafter/release-drafter@v5.22.0
+      with:
+        name: ${{ github.event.repository.name }} ${{ needs.build.outputs.semVer2 }}
+        prerelease: ${{ needs.build.outputs.isPreviewRelease }}
+        tag: ${{ needs.build.outputs.semVer2 }}
+        commitish: ${{ github.ref }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.CREATE_RELEASE_PAT }}
+
+    - uses: shogo82148/actions-upload-release-asset@v1
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }} 
+        asset_path: '**/${{ github.event.repository.name }}.*.nupkg'
+        github_token: ${{ secrets.CREATE_RELEASE_PAT }}
+        
+    - uses: eregon/publish-release@v1
+      with:
+        release_id: ${{ steps.create_release.outputs.id }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.CREATE_RELEASE_PAT }}
+
+

@@ -1,0 +1,111 @@
+# NOTE: set the REGISTRY secret to your own quay.io account in your fork to
+# test this workflow!
+---
+name: Build and Publish Images
+
+on:
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build from (make sure to use workflow from the same branch).'
+        required: true
+        type: choice
+        options:
+        - redhat-3.9
+        - redhat-3.7
+        - redhat-3.8
+        - redhat-3.9
+        - redhat-3.10
+  push:
+    # NOTE: if you trigger this on your branch, ensure its name follows the redhat-X.Y format!
+    branches:
+      - redhat-** # IMPORTANT! this must match the .jobs.set-version.env.BRANCH_PREFIX env (save the **).
+
+jobs:
+  set-version:
+    if: ${{ contains(github.ref, 'redhat-') }}
+    name: Set version from branch name
+    env:
+      BRANCH_PREFIX: redhat- # IMPORTANT! this must match the .on.push.branches prefix!
+      TAG_SUFFIX: -unstable
+    outputs:
+      tag: ${{ steps.format-tag.outputs.tag }}
+    runs-on: 'ubuntu-latest'
+    steps:
+      - name: Format version
+        id: version-from-branch
+        run: |
+          # use the given branch name when the workflow is manually run,
+          # or the GITHUB_REF_NAME otherwise (the branch that triggered the workflow)
+          INPUT_BRANCH=${{ github.event.inputs.branch }}
+          BRANCH_NAME=${INPUT_BRANCH:-$GITHUB_REF_NAME}
+          # remove the prefix from the branch name
+          VERSION=${BRANCH_NAME/${{ env.BRANCH_PREFIX }}/}
+          echo "::set-output name=version::${VERSION}"
+
+      - name: Format tag with version
+        id: format-tag
+        run: echo "::set-output name=tag::${{ steps.version-from-branch.outputs.version }}${{ env.TAG_SUFFIX }}"
+
+  build-and-publish:
+    if: ${{ contains(github.ref, 'redhat-') }}
+    name: Build and publish operator catalog index
+    runs-on: 'ubuntu-latest'
+    outputs:
+      digest: ${{ steps.set-output.outputs.digest }}
+    env:
+      REGISTRY: ${{ secrets.REGISTRY || 'quay.io' }}
+      NAMESPACE: ${{ secrets.NAMESPACE || 'projectquay' }}
+      TAG: ${{needs.set-version.outputs.tag}}
+    needs: set-version
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v2
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref_name }}
+
+      - name: Install opm from OpenShift Mirror
+        uses: redhat-actions/openshift-tools-installer@v1
+        with:
+          opm: "latest"
+      
+      - name: Install skopeo
+        run: |
+          sudo apt-get -y install skopeo
+
+      - name: Install yq
+        env:
+          VERSION: v4.14.2
+          BINARY: yq_linux_amd64
+        run: |
+          wget https://github.com/mikefarah/yq/releases/download/${VERSION}/${BINARY} -O /usr/local/bin/yq
+          chmod +x /usr/local/bin/yq
+
+      - name: Login to Quay.io
+        uses: docker/login-action@v1
+        with:
+          registry: ${{ secrets.REGISTRY || 'quay.io' }}
+          username: ${{ secrets.QUAY_USER }}
+          password: ${{ secrets.QUAY_TOKEN }}
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - id: build-and-publish
+        run: ./hack/build.sh
+
+      - name: Notify slack
+        if: ${{ contains(github.ref, 'redhat-') && always() }}
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_CHANNEL: team-quay-bots
+          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+          SLACK_COLOR: ${{ job.status }}
+          SLACK_TITLE: "${{ github.workflow }}: ${{ job.status }}"
+          SLACK_MESSAGE: |
+            * **Repo**:     ${{ github.repository }}
+            * **Workflow**: ${{ github.workflow }}
+            * **Result**:   ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}

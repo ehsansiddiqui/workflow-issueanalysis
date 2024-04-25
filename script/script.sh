@@ -1,1 +1,1 @@
-for file in *.yaml; do actionlint -format '{{range $err := .}}{{json $err}}{{end}}' $file >> ../actionresponsecheck.json; done
+for file in ../data-raw/data-v2/workflows/*; do actionlint -format '{{range $err := .}}{{json $err}}{{end}}' $file >> ../actionresponsecheck.json; done

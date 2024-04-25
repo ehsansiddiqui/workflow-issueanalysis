@@ -1,0 +1,30 @@
+name: GH Pages
+
+on:
+  push:
+    branches:
+      - main
+
+permissions: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: 'Install Node'
+        uses: actions/setup-node@v3.6.0
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Docs
+        run: npm run docs
+
+      - name: Deploy
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          deploy_key: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs

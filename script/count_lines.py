@@ -10,7 +10,7 @@ def _count_generator(reader):
         b = reader(1024 * 1024)
 
 file_info = dict()
-files = [file for file in glob.glob("*.yaml")]
+files = [file for file in glob.glob("./workflows/*")]
 for file_name in files:
     with open(file_name, 'rb') as fp:
         c_generator = _count_generator(fp.raw.read)
