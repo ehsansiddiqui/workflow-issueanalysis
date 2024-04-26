@@ -1,0 +1,2 @@
+data/repoissuedata_v4.csv.gz filter=lfs diff=lfs merge=lfs -text
+script/typescript filter=lfs diff=lfs merge=lfs -text
