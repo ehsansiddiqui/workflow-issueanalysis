@@ -1,0 +1,31 @@
+name: "ActionLint"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  schedule:
+    - cron: '36 23 * * 5'
+
+jobs:
+  run-actionlint:
+    runs-on: ubuntu-latest
+    permissions:
+      # needed for the checkout action
+      contents: read
+      # needed to annotate the files in a pull request with comments
+      pull-requests: write
+    steps: 
+    # checkout the source code to analyze
+    - uses: actions/checkout@v3 # v3
+
+    # run the actionlinter, will fail on errors
+    - uses: devops-actions/actionlint@c0ee017f8abef55d843a647cd737b87a1976eb69 #v0.1.1
+      continue-on-error: true
+      id: action-lint
+    
+    - uses: actions/upload-artifact@v3
+      with:
+        name: actionlint-results
+        path: ${{ steps.action-lint.outputs.results-file }}

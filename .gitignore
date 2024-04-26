@@ -2,3 +2,4 @@
 data-raw
 .ipynb_checkpoints
 .DS_Store
+.data/repoissuedata_v4.csv.gz
