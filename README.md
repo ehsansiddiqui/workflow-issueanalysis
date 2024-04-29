@@ -44,7 +44,7 @@ The dataset comprises numerous features which are as follows:
 16. **File Path:** File path of the workflow in the repository.
 17. **Previous File Path:** Previous file path of the workflow file in the repository.
 18. **Previous File Hash:** Hash of the previous workflow file in the repository.
-19. **Change Type:** Refers to the change in the workflow file such as Added (A), Modified (M), and Remove (R).
+19. **Change Type:** Refers to the change in the workflow file such as Added (A), Modified (M), and Rename (R).
 20. **Valid YAML:** Provides information about the file that it is a valid YAML file but not clear that it is a workflow file.
 21. **Valid Workflow:** Provides information that it is a valid workflow file.
 22. **Lines Count:** Total number of lines in the workflow.
