@@ -1,60 +1,65 @@
- # workflow-issueanalysis
+# Workflow Issue Analysis
 
-This repository contains the analysis of issue existence in workflows files in different repositories. 
+This repository contains the analysis of issue existence in workflow files in different repositories.
 
-The information about the preprocessing of the dataset is as follow:
+## Preprocessing Steps
 
-Step 1:
-Run ActionLint on the workflows files
-Run the script to count the total number of lines in the workflows
+### Step 1:
+- Run ActionLint on the workflow files.
+- Run the script to count the total number of lines in the workflows.
 
-Step 2:
-Choose only the workflow files that are valid workflows files
+### Step 2:
+- Choose only the workflow files that are valid workflow files.
 
-Step 3:
-Merge the dataset with the dataset from the actionlint on file_hash column
+### Step 3:
+- Merge the dataset with the dataset from ActionLint on the `file_hash` column.
 
-Step 4: 
-Created new features such as: status, next commit, error count, unique workflow id
+### Step 4:
+- Create new features such as: `status`, `next commit`, `error count`, `unique workflow id`.
 
-Step 5: 
-Done the resampling to get the normalize dataset
+### Step 5:
+- Perform resampling to obtain a normalized dataset.
 
-Step 6:
-Map the custom Issue Rule to the dataset
+### Step 6:
+- Map the custom Issue Rule to the dataset.
 
-The information about the dataset features are as follows:
+## Dataset Features
+The dataset comprises numerous features which are as follows:
 
-1. Message: Error message in the workflow file reported by ActionLint
-2. Line: Line of the error message in the workflow file
-3. Column: Column of the error message in the workflow file
-4. Kind: Error messages are divided into various kind such as:'deprecated-commands', 'expression', 'runner-label', 'events', 'action', 'syntax-check', 'workflow-call', 'matrix', 'glob', 'job-needs', 'id', 'env-var', 'shell-name', 'yaml-syntax' depending on the text of the error message
-5. snippet: Information about the code snippet where the error occurs in the workflow file
-6. end_column: End column of the column of the error message in the workflow file
-7. file_hash: The hash of the workflow file
-8. repository: The repository of the workfile
-9. commit_hash: The hash of the commit of the workflow file in the repository
-10. author_name: The author name of the committer
-11. author_email: The author email of the committer
-12. committer_name: The name of the committer
-13. committer_email: The email of the committer
-14. committed_date: The commited date of the commit
-15. Authored_date: The date and time when the changes were originally created by the contributor
-16. file_path: The file of the workflow in the repository
-17. previous_file_path: The previous file path of the workflow file in teh repository
-18. previous_file_hash: The hash of the previous workflow file in the repository
-19. change type: referred to the change in the workflow file such as Added (A), Modified (M) and Remove (R)
-20. valid yaml: Provide information about the file that it is a valid yaml file but not clear that it is a workflow file
-21. valid_workflow: Provide information that it is a valid workflow file
-22. lines_count: total number of the lines in the workflow
-23. time lapse: provide the time difference between the first commit with the error message and the sepcified commit in the reository 
-24. status: provide the information that the issue is open or closed in the workflow file at at the specified commit
-25. error count: provide the information about the total number of issue at a specified commit in the workflow
-26. unique workflow id: give the unique workflow id that is the combination of the {author}/{repo}/{filepath}/{hash_val} of the workflow.
+1. **Message:** Error message in the workflow file reported by ActionLint.
+2. **Line:** Line of the error message in the workflow file.
+3. **Column:** Column of the error message in the workflow file.
+4. **Kind:** Error messages are divided into various kinds such as: `deprecated-commands`, `expression`, `runner-label`, `events`, `action`, `syntax-check`, `workflow-call`, `matrix`, `glob`, `job-needs`, `id`, `env-var`, `shell-name`, `yaml-syntax` depending on the text of the error message.
+5. **Snippet:** Information about the code snippet where the error occurs in the workflow file.
+6. **End Column:** End column of the error message in the workflow file.
+7. **File Hash:** Hash of the workflow file.
+8. **Repository:** Repository of the workfile.
+9. **Commit Hash:** Hash of the commit of the workflow file in the repository.
+10. **Author Name:** Author name of the committer.
+11. **Author Email:** Author email of the committer.
+12. **Committer Name:** Name of the committer.
+13. **Committer Email:** Email of the committer.
+14. **Committed Date:** Committed date of the commit.
+15. **Authored Date:** Date and time when the changes were originally created by the contributor.
+16. **File Path:** File path of the workflow in the repository.
+17. **Previous File Path:** Previous file path of the workflow file in the repository.
+18. **Previous File Hash:** Hash of the previous workflow file in the repository.
+19. **Change Type:** Refers to the change in the workflow file such as Added (A), Modified (M), and Remove (R).
+20. **Valid YAML:** Provides information about the file that it is a valid YAML file but not clear that it is a workflow file.
+21. **Valid Workflow:** Provides information that it is a valid workflow file.
+22. **Lines Count:** Total number of lines in the workflow.
+23. **Time Lapse:** Provides the time difference between the first commit with the error message and the specified commit in the repository.
+24. **Status:** Provides the information that the issue is open or closed in the workflow file at the specified commit.
+25. **Error Count:** Provides the information about the total number of issues at a specified commit in the workflow.
+26. **Unique Workflow ID:** Gives the unique workflow ID that is the combination of the `{author}/{repo}/{filepath}/{hash_val}` of the workflow.
 
 
-Pseudocode for the extracted features:
-1. Error Count feature:
+
+## Pseudocode for Extracted Features
+Here's a glimpse of the pseudocode for extracting essential features:
+
+### Error Count Feature
+```python
   function error_count(repository, dataframe):
       count = 0 
       msgstack = []
@@ -73,8 +78,9 @@ Pseudocode for the extracted features:
       end for
   
       return dataframe
-
-2. Time Lapse
+```
+### Time Lapse
+```python
 function time_lapse(repository, dataset):
     for each row in dataset:
         if row['repository'] equals repository then
@@ -89,8 +95,9 @@ function time_lapse(repository, dataset):
         Set row['time_lapse'] to calculated time difference
 
     return dataset
-
-3. Status
+```
+### Status
+```python
 function status_feature(df):
     for each unique_commit in df['commit_hash']:
         Create df_temp containing rows where 'commit_hash' EQUALS unique_commit
@@ -102,8 +109,9 @@ function status_feature(df):
         set 'status' to "open" for rows where 'commit_hash' equals unique_commit and 'message' is in common_messages in df
 
     return df
-
-4. Unique Workflow Id:
+```
+### Unique Workflow Id:
+```python
 function generate_workflow_id(dataset):
     sort dataset by 'committed_date'
     mapping = {}
@@ -139,8 +147,9 @@ function generate_workflow_id(dataset):
                 result[index of row] = mapping[(repo, filepath)]
 
     return result
-
-6. Resampling of the dataset wrt to date
+```
+### Resampling of the dataset wrt to date
+```python
 function resampling(dataset, repository):
     dataset = filter dataset where 'repository' equals repository
     if length of dataset < 2 then
@@ -171,3 +180,4 @@ function resampling(dataset, repository):
             concatenate temp_list and dataset into df_data
             sort df_data by 'committed_date'
             return df_data
+```
