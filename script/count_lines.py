@@ -10,7 +10,7 @@ def _count_generator(reader):
         b = reader(1024 * 1024)
 
 file_info = dict()
-files = [file for file in glob.glob("./workflows/*")]
+files = [file for file in glob.glob("../data-raw/data-v3/workflows/*")]
 for file_name in files:
     with open(file_name, 'rb') as fp:
         c_generator = _count_generator(fp.raw.read)
@@ -22,5 +22,5 @@ for file_name in files:
 #  Serializing json
 json_object = json.dumps(file_info, indent=4)
 
-with open("../workflow_line_info.json", "w") as outfile:
+with open("../workflow_line_info_v3.json", "w") as outfile:
     outfile.write(json_object)

@@ -1,1 +1,1 @@
-for file in ../data-raw/data-v2/workflows/*; do actionlint -format '{{range $err := .}}{{json $err}}{{end}}' $file >> ../actionresponsecheck.json; done
+for file in ../data-raw/data-v3/workflows/*; do actionlint -format '{{range $err := .}}{{json $err}}{{end}}' $file >> ../actionresponsecheck_v3.json; done
