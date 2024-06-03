@@ -2,8 +2,15 @@
 data-raw
 .ipynb_checkpoints
 .DS_Store
-.data/repoissuedata_v4.csv.gz
-.data/repoissuedata_v6.csv.gz
+data/repoissuedata_v4.csv.gz
+data/repoissuedata_v6.csv.gz
+data/repoissue_data_v6.csv
+data/resampledrepodatawithoutissue_v6.csv.gz
 
+data/repoissuedata_v5.csv.gz
+# Ignore large files
+notebook/analysis_notebook/wf_issue_v4.ipynb
+data/repoissue_data_v6.csv
+data/resampledrepodatawithoutissue_v6.csv.gz
 
 .script/typescript
